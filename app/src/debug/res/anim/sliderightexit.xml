@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+<set xmlns:android="http://schemas.android.com/apk/res/android">
+    <objectAnimator
+        android:interpolator="@android:interpolator/decelerate_quint"
+        android:valueFrom="0dp" android:valueTo="100dp"
+        android:valueType="floatType"
+        android:propertyName="translationX"
+        android:duration="@android:integer/config_mediumAnimTime" />
+
+    <objectAnimator
+        android:interpolator="@android:interpolator/decelerate_quint"
+        android:valueFrom="1.0" android:valueTo="0.0"
+        android:valueType="floatType"
+        android:propertyName="alpha"
+        android:duration="@android:integer/config_mediumAnimTime" />
+</set>-->
+
+<set
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/linear_interpolator"
+    android:fillAfter="true">
+
+    <translate
+        android:fromXDelta="0%p"
+        android:toXDelta="75%p"
+        android:duration="800" />
+</set>
+
+

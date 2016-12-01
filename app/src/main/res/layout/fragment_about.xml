@@ -1,0 +1,221 @@
+<android.support.design.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    tools:context=".AboutFragment">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:weightSum="11"
+        android:gravity="center"
+        android:background="@drawable/img_about_backg">
+
+
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="9"
+            android:weightSum="9"
+            >
+            <LinearLayout
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="2"
+                android:weightSum="5"
+                android:gravity="end|bottom"
+                >
+
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="2"
+            android:weightSum="10"
+            android:background="@color/colorPrimary"
+            android:alpha="0.2"
+            >
+
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:weightSum="11"
+        android:background="@android:color/transparent"
+        android:gravity="center_horizontal|center_vertical">
+
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="8"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp"
+            android:background="@color/white"
+            android:weightSum="9"
+            android:alpha="0.95"
+            >
+
+            <de.hdodenhof.circleimageview.CircleImageView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="2.2"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="10dp"
+                android:src="@drawable/img_custom"
+                android:tint="@color/colorPrimary"
+                android:id="@+id/circleView"
+                android:layout_gravity="center"
+                app:civ_border_width="0dp"
+                app:civ_border_color="#000000"
+                />
+
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="6.8"
+                android:overScrollMode="ifContentScrolls">
+
+                <android.support.v4.widget.NestedScrollView
+                    android:id="@+id/scroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    app:layout_behavior="android.support.design.widget.BottomSheetBehavior"
+                    ><!--app:layout_behavior="@string/appbar_scrolling_view_behavior"-->
+
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_marginLeft="15dp"
+                    android:layout_marginRight="15dp"
+                    android:layout_marginBottom="15dp"
+                    android:weightSum="6"
+                    android:gravity="top|center_horizontal"
+                    >
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="0.6" />
+
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Welcome to"
+                        android:textColor="@color/colorPrimary"
+                        android:fontFamily="casual"
+                        android:textStyle="bold"
+                        android:textSize="20sp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Title"
+                        android:layout_gravity="center_horizontal"
+                        android:textAlignment="gravity"
+                        android:gravity="start|center_vertical"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="PlaceME \u00AB"
+                        android:textColor="@color/colorPrimary"
+                        android:fontFamily="casual"
+                        android:textStyle="bold"
+                        android:textSize="20sp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Title"
+                        android:textAlignment="gravity"
+                        android:gravity="start|center_vertical"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="@color/colorPrimary"
+                        android:fontFamily="casual"
+                        android:textStyle="bold"
+                        android:textSize="10sp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Title"
+                        android:textAlignment="gravity"
+                        android:gravity="start|center_vertical"/>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="0.1" />
+
+
+
+                    <LinearLayout
+                        android:orientation="horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:weightSum="4"
+                        android:gravity="top|center_horizontal"
+                        >
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_weight="3"
+                            android:layout_height="wrap_content"
+                            android:text="Have you ever been lost on planet earth?"
+                            android:textColor="@color/colorPrimary"
+                            android:fontFamily="casual"
+                            android:textStyle="normal"
+                            android:textSize="15sp"
+                            android:textAppearance="@style/TextAppearance.Widget.AppCompat.Toolbar.Subtitle"
+                            android:textAlignment="gravity"
+                            android:gravity="center"/>
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:orientation="horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:weightSum="4"
+                        android:gravity="top|center_horizontal"
+                        >
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_weight="3.4"
+                            android:layout_height="wrap_content"
+                            android:text="Taking a hike, going camping, going  fishing, going somewhere unimportant? \n Never get lost on planet earth. With PlaceMe, it's all about you, and your location \n \n \u00A9 George Chuks 2016 "
+                            android:textColor="@color/colorPrimary"
+                            android:fontFamily="casual"
+                            android:textStyle="normal"
+                            android:textSize="14sp"
+                            android:textAppearance="@style/TextAppearance.Widget.AppCompat.Toolbar.Subtitle"
+                            android:textAlignment="gravity"
+                            android:gravity="center"/>
+
+                    </LinearLayout>
+
+
+                </LinearLayout>
+
+                </android.support.v4.widget.NestedScrollView>
+            </ScrollView>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+
+</android.support.design.widget.CoordinatorLayout>
