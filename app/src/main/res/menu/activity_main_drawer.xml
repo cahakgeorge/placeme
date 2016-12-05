@@ -9,7 +9,7 @@
         <item
             android:id="@+id/my_locs"
             android:icon="@drawable/ic_location"
-            android:title="Locations" />
+            android:title="Saved Locations" />
         <item
             android:id="@+id/trending"
             android:icon="@drawable/ic_grade_white_24"

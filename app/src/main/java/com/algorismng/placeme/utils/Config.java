@@ -7,6 +7,6 @@ package com.algorismng.placeme.utils;
 public class Config {
 
     // global topic to receive app wide push notifications
-    public static final String SHARED_PREF = "DmsPrefsFile";
+    public static final String SHARED_PREF = "PlacemePrefsFile";
 
 }

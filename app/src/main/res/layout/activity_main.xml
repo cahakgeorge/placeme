@@ -46,7 +46,7 @@
                     android:name="com.google.android.gms.maps.SupportMapFragment"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
-                    android:layout_weight="7"
+                    android:layout_weight="8"
                     tools:context="com.algorism.placeme.MainActivity" />
 
                 </LinearLayout>
@@ -73,8 +73,8 @@
             <LinearLayout
                 android:id="@+id/bottom_sheet"
                 android:layout_width="match_parent"
-                android:layout_height="400dp"
-                app:behavior_peekHeight="400dp"
+                android:layout_height="300dp"
+                app:behavior_peekHeight="150dp"
                 android:elevation="@dimen/z_bottom_sheet"
                 app:layout_behavior="android.support.design.widget.BottomSheetBehavior"
                 android:background="@color/White"
@@ -85,7 +85,7 @@
                 <LinearLayout
                     android:orientation="vertical"
                     android:layout_width="0dp"
-                    android:layout_weight="1"
+                    android:layout_weight="0.8"
                     android:layout_height="match_parent"
                     android:gravity="top"
                     android:weightSum="6"
@@ -95,7 +95,7 @@
                         android:orientation="horizontal"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
-                        android:layout_weight="1.7"
+                        android:layout_weight="1.5"
                         android:gravity="center_horizontal|top"
                         >
                         <!--<ImageView
@@ -108,6 +108,28 @@
                             android:tint="@color/colorPrimary300"/>-->
 
                     </LinearLayout>
+                    <!--<View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/gray"
+                        />-->
+
+                    <LinearLayout
+                        android:orientation="horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1.3"
+                        android:gravity="center_horizontal|top"
+                        >
+
+
+                    </LinearLayout>
+
+              <!--      <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/gray"
+                        />-->
 
                     <LinearLayout
                         android:orientation="horizontal"
@@ -137,10 +159,9 @@
                         <ImageView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1.2"
                             android:gravity="top"
                             android:layout_gravity="center"
-                            android:src="@drawable/ic_calendar"
+                            android:src="@android:drawable/ic_menu_mylocation"
                             android:tint="@color/colorPrimary300"/>
 
                     </LinearLayout>
@@ -163,11 +184,11 @@
 
                     </LinearLayout>
 
-                    <LinearLayout
+                    <!--<LinearLayout
                         android:orientation="horizontal"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
-                        android:layout_weight="1.1"
+                        android:layout_weight="1.3"
                         android:gravity="center_horizontal|top"
                         >
                         <ImageView
@@ -178,14 +199,14 @@
                             android:src="@drawable/ic_calendar"
                             android:tint="@color/colorPrimary300"/>
 
-                    </LinearLayout>
+                    </LinearLayout>-->
 
                 </LinearLayout>
 
                 <LinearLayout
                     android:orientation="vertical"
                     android:layout_width="0dp"
-                    android:layout_weight="3.5"
+                    android:layout_weight="3.7"
                     android:layout_height="match_parent"
                     android:gravity="start|top"
                     android:weightSum="6"
@@ -195,11 +216,11 @@
                         android:id="@+id/state_country"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
-                        android:layout_weight="0.7"
-                        android:text="Lagos, Nigeria"
+                        android:layout_weight="0.5"
+                        android:text=""
                         android:textColor="@color/black"
                         android:fontFamily="casual"
-                        android:textSize="20sp"
+                        android:textSize="18sp"
                         android:textStyle="bold"
                         android:textAppearance="@style/BootomSheet.TitleText"
                         android:textAlignment="gravity"
@@ -211,11 +232,11 @@
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="0.5"
-                        android:text="Ikeja"
+                        android:text=""
                         android:layout_marginLeft="@dimen/margin_two"
                         android:textColor="@color/jet"
                         android:fontFamily="casual"
-                        android:textSize="17sp"
+                        android:textSize="16sp"
                         android:textStyle="bold"
                         android:textAppearance="@style/BootomSheet.TitleText"
                         android:textAlignment="gravity"
@@ -227,7 +248,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="0.5"
-                        android:text="cahakgeorge@gmail.com"
+                        android:text=""
                         android:layout_marginLeft="@dimen/margin_two"
                         android:textColor="@color/colorPrimary"
                         android:fontFamily="casual"
@@ -244,12 +265,40 @@
                         android:background="@color/gray"
                         />
 
+                    <ImageView
+                        android:id="@+id/save_location"
+                        android:layout_width="17dp"
+                        android:layout_height="0dp"
+                        android:layout_weight="0.9"
+                        android:layout_gravity="center_horizontal|center_vertical"
+                        android:src="@drawable/ic_grade_white_24"
+                        android:tint="@color/colorPrimary300"/>
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="0.4"
+                        android:text="Save Location"
+                        android:textColor="@color/gray"
+                        android:fontFamily="sans-serif"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textAppearance="@style/BootomSheet.TitleText"
+                        android:textAlignment="gravity"
+                        android:gravity="center_horizontal|center_vertical"
+                        />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/gray"
+                        />
+
                     <TextView
                         android:id="@+id/address"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1.1"
-                        android:text="2, Oduduwa Crescent, Ikeja"
+                        android:text="Location address not available yet"
                         android:layout_marginLeft="@dimen/margin_two"
                         android:textColor="@color/jet"
                         android:fontFamily="sans-serif"
@@ -265,7 +314,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1"
-                        android:text="Lat 2.1344739, Lng 3.8917191"
+                        android:text="Geographic coordinates not available yet"
                         android:layout_marginLeft="@dimen/margin_two"
                         android:textColor="@color/jet"
                         android:fontFamily="sans-serif"
@@ -281,7 +330,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1"
-                        android:text="December 1, 2016"
+                        android:text=""
                         android:layout_marginLeft="@dimen/margin_two"
                         android:textColor="@color/jet"
                         android:fontFamily="sans-serif"
@@ -292,12 +341,12 @@
                         android:gravity="center_vertical"
                         />
 
-                    <TextView
+                   <!-- <TextView
                         android:id="@+id/location_nearby"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
-                        android:layout_weight="1.1"
-                        android:text="Seewt Sensation, Airport hotel, the place, ogun state liason office"
+                        android:layout_weight="1.3"
+                        android:text="No nearby places yet"
                         android:layout_marginLeft="@dimen/margin_two"
                         android:textColor="@color/jet"
                         android:fontFamily="sans-serif"
@@ -306,12 +355,11 @@
                         android:textAppearance="@style/BootomSheet.TitleText"
                         android:textAlignment="gravity"
                         android:gravity="center_vertical"
-                        />
+                        />-->
 
                 </LinearLayout>
 
-
-        </LinearLayout>
+            </LinearLayout>
        <!-- </android.support.v4.widget.NestedScrollView>-->
 
         <android.support.design.widget.FloatingActionButton
@@ -320,7 +368,8 @@
             android:layout_height="wrap_content"
             style="@style/fabTheme"
             android:layout_margin="@dimen/fab_margin"
-            android:src="@drawable/ic_grade_white_24"
+            android:src="@android:drawable/ic_dialog_map"
+            android:tint="@color/WhiteSmoke"
             android:clickable="true"
             app:layout_anchor="@id/bottom_sheet"
             app:layout_anchorGravity="top|right|end"/>
@@ -329,7 +378,7 @@
 
     <android.support.design.widget.NavigationView
         android:id="@+id/nav_view"
-        android:layout_width="0dp"
+        android:layout_width="220dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:background="@color/white"

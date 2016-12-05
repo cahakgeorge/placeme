@@ -1,13 +1,20 @@
 package com.algorismng.placeme;
 
+import android.Manifest;
 import android.accounts.Account;
 import android.accounts.AccountManager;
+import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentSender;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
+import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -28,25 +35,35 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.afollestad.materialdialogs.DialogAction;
 import com.afollestad.materialdialogs.MaterialDialog;
-import com.algorismng.placeme.service.GetAddressIntentService;
+import com.algorismng.placeme.utils.Config;
+import com.algorismng.placeme.utils.Const;
 import com.algorismng.placeme.utils.Constants;
+import com.algorismng.placeme.utils.NetworkCheck;
+import com.google.android.gms.appindexing.Action;
+import com.google.android.gms.appindexing.AppIndex;
+import com.google.android.gms.appindexing.Thing;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResult;
+import com.google.android.gms.location.LocationSettingsStates;
+import com.google.android.gms.location.LocationSettingsStatusCodes;
 import com.google.android.gms.location.places.PlaceLikelihood;
 import com.google.android.gms.location.places.PlaceLikelihoodBuffer;
 import com.google.android.gms.location.places.Places;
@@ -61,12 +78,8 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.IOException;
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -83,11 +96,13 @@ public class MainActivity extends AppCompatActivity
         GoogleApiClient.OnConnectionFailedListener,
         LocationListener {
 
+    private static final int REQUEST_CHECK_SETTINGS = 0x1;
     //Declare UI elements to be interacted with
     DrawerLayout drawer;
     FloatingActionButton fab;
     Toolbar toolbar;
     NavigationView navigationView;
+    ImageView mSaveLocation;
 
     //Material dialog imported from git
     MaterialDialog dialog;
@@ -104,13 +119,17 @@ public class MainActivity extends AppCompatActivity
     // A request object to store parameters for requests to the FusedLocationProviderApi.
     private LocationRequest mLocationRequest;
     // The desired interval for location updates. Inexact. Updates may be more or less frequent.
-    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 15000;
+    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10000;
     // The fastest rate for active location updates. Exact. Updates will never be more frequent
     // than this value.
-    private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
+    private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = 1000; //1 Second
 
     // The geographical location where the device is currently located.
     private Location mCurrentLocation;
+
+    // The geographical location where the device was previously located.
+    private Location mPreviousLocation;
+
 
     // A default location (Sydney, Australia) and default zoom to use when location permission is
     // not granted.
@@ -124,15 +143,35 @@ public class MainActivity extends AppCompatActivity
     private static final String KEY_LOCATION = "location";
 
     //
-    protected Location mLastLocation;
+    //protected Location mLastLocation;
     private AddressResultReceiver mResultReceiver;
     private boolean mAddressRequested;
     private String mAddressOutput;
-
     private TextView mTitle;
     BottomSheetBehavior mBottomSheetBehavior;
 
-    TextView mNearby, mdate, mCoordinates, mAddress, mMail, mStateCountry;
+    TextView mNearby, mDate, mCoordinates, mAddress, mLocality, mMail, mStateCountry;
+    CoordinatorLayout mCoordinatorLayout;
+
+    SharedPreferences mPref;
+
+    /**
+     * Arraylist to hold the locations and location details String holds values in this order
+     * Latitude >> Longitude >> Address
+     */
+
+    //ArrayList<String> mPlacesList = new ArrayList<>();
+    String mLocationFullAddress = ""; //Stores the complete locations address
+    String mPlaceDetails = "", mPopularLocations = "";
+
+    public NetworkCheck mNetCheck;
+    /**
+     * ATTENTION: This was auto-generated to implement the App Indexing API.
+     * See https://g.co/AppIndexing/AndroidStudio for more information.
+     */
+    private GoogleApiClient client;
+
+    private boolean isLocationSettingsEnabled = false;
 
     //Initialize layout
     //Call function to initialize user interface(UI) elements
@@ -143,9 +182,6 @@ public class MainActivity extends AppCompatActivity
         // Retrieve the content view which renders the map and the frames for other fragments.
         setContentView(R.layout.activity_main);
 
-        setupLayoutElements();
-
-
         // Retrieve location and camera position from saved instance state.
         if (savedInstanceState != null) {
             mCurrentLocation = savedInstanceState.getParcelable(KEY_LOCATION);
@@ -154,13 +190,36 @@ public class MainActivity extends AppCompatActivity
 
         // Build the Play services client for use by the Fused Location Provider and the Places API.
         buildGoogleApiClient();
+
+        //initialize network check
+        mNetCheck = new NetworkCheck(this.getApplicationContext());
+
         mGoogleApiClient.connect();
 
-        //startIntentService();
+        isLocationSettingsEnabled();
 
-        /*SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-                .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);*/
+        setupLayoutElements();
+
+       /* //check for whether location service has been enabled
+        if(isLocationEnabled()) {
+
+        }else openLocationSettings();*/
+
+        //instantiate preferences
+        mPref = getSharedPreferences(Config.SHARED_PREF, MODE_PRIVATE);
+
+        //check whether shared preferences contains old saved locations, if yes, retrieve
+        if (mPref.contains(Const.savedLocations)) {
+            mPlaceDetails = mPref.getString(Const.savedLocations, null);
+        }
+
+        //check whether shared preferences contains old popular locations, if yes, retrieve
+        if (mPref.contains(Const.popularLocation)) {
+            mPopularLocations = mPref.getString(Const.popularLocation, null);
+        }
+        // ATTENTION: This was auto-generated to implement the App Indexing API.
+        // See https://g.co/AppIndexing/AndroidStudio for more information.
+        client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
     }
 
     //initializes UI elements
@@ -176,9 +235,10 @@ public class MainActivity extends AppCompatActivity
         mTitle = (TextView) toolbar.findViewById(R.id.toolbar_title);
         mTitle.setText(R.string.title_current_location);
 
-        CoordinatorLayout coordinatorLayout = (CoordinatorLayout)findViewById(R.id.coordinator_layout);
+        //get the coordinator layout
+        mCoordinatorLayout = (CoordinatorLayout) findViewById(R.id.coordinator_layout);
 
-        final View mLayoutBottomSheet = coordinatorLayout.findViewById(R.id.bottom_sheet);
+        final View mLayoutBottomSheet = mCoordinatorLayout.findViewById(R.id.bottom_sheet);
 
         //get bottom sheet behavior from bottom sheet view
         mBottomSheetBehavior = BottomSheetBehavior.from(mLayoutBottomSheet);
@@ -187,37 +247,51 @@ public class MainActivity extends AppCompatActivity
         //mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
 
         //instantiate all the textviews  mNearby, mdate, mCoordinates, mAddress, mMail, mStateCountry;
-        mNearby = (TextView) toolbar.findViewById(R.id.location_nearby);
-        mdate = (TextView) toolbar.findViewById(R.id.date_day);
-        mCoordinates = (TextView) toolbar.findViewById(R.id.geo_coordinates);
-        mAddress = (TextView) toolbar.findViewById(R.id.address);
-        mMail = (TextView) toolbar.findViewById(R.id.user_mail);
-        mStateCountry = (TextView) toolbar.findViewById(R.id.state_country);
+        //mNearby = (TextView) findViewById(R.id.location_nearby);
+        mDate = (TextView) findViewById(R.id.date_day);
+        mCoordinates = (TextView) findViewById(R.id.geo_coordinates);
+        mAddress = (TextView) findViewById(R.id.address);
+        mLocality = (TextView) findViewById(R.id.locality);
+        mMail = (TextView) findViewById(R.id.user_mail);
+        mStateCountry = (TextView) findViewById(R.id.state_country);
+
+        mSaveLocation = (ImageView) findViewById(R.id.save_location) ;
+
+        mSaveLocation.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mPlaceDetails += mCurrentLocation.getLatitude() + " >:> " + mCurrentLocation.getLatitude() + " >:> " + mLocationFullAddress + ">>>";
+                //mPlacesList.add(placeDetails);
+
+                mPref.edit()
+                        .putString(Const.savedLocations, mPlaceDetails)
+                        .commit();
+
+                Snackbar.make(v, "Current location has been saved", Snackbar.LENGTH_LONG)
+                        .setAction("Action", null).show();
+            }
+        });
 
         //get google account on phone
-        mMail.setText(getUsername());
+        String username = getUsername();
+        if (username != null) mMail.setText(username);
 
         //get date
         Calendar c = Calendar.getInstance();
 
-        DateFormat fromFormat = new SimpleDateFormat("dd/MM/yyyy");
-        fromFormat.setLenient(false);
-        DateFormat toFormat = new SimpleDateFormat("dd/MMM/yyyy");
-        toFormat.setLenient(false);
-        Date datt = null;
-        try {
-            datt = fromFormat.parse(c.get(Calendar.DAY_OF_MONTH)+"/"+(c.get(Calendar.MONTH)+1)+"/"+c.get(Calendar.YEAR));
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
+        int day = c.get(Calendar.DAY_OF_MONTH);
+        int month = c.get(Calendar.MONTH);
+        int year = c.get(Calendar.YEAR);
 
-        //TODO: implement logic to save location in an array list
+        String date = getMonth(month) + " " + day + ", " + year;
+        mDate.setText(date);
+
+        //TODO: implement recyclerview to display saved locations, use a toast for now
         fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
+        fab.setOnClickListener(new View.OnClickListener() {//>:>
             @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Current location has been saved", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
+            public void onClick(View view) {//" >:> " is the delimiter, by which the location string will be split
+
             }
         });
         drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
@@ -228,6 +302,19 @@ public class MainActivity extends AppCompatActivity
 
         navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
+
+        View headerLayout = navigationView.getHeaderView(0); // 0-index header
+        TextView nmView = (TextView) headerLayout.findViewById(R.id.nameView);
+        TextView emView = (TextView) headerLayout.findViewById(R.id.emailView);
+
+        //get the user email
+        String user_email = getUsername();
+
+        //now set the email and the account name, stripping the @ siymbol of the mail
+        emView.setText(user_email);
+
+        String[] parts = user_email.split("@");
+        nmView.setText(parts[0]);
     }
 
     /**
@@ -245,7 +332,10 @@ public class MainActivity extends AppCompatActivity
 
             if (fragment_about != null) {//if fragment about is in view, remove
                 getSupportFragmentManager().beginTransaction().remove(fragment_about).commit();
-            }else if (fragment_about != null) {//if fragment about is in view, remove
+                //set title to home
+                mTitle.setText(R.string.title_current_location);//change the actionbar title text
+
+            } else if (fragment_about != null) {//if fragment about is in view, remove
                 getSupportFragmentManager().beginTransaction().remove(fragment_about).commit();
             } else {
                 //confirm user exit action
@@ -254,19 +344,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    public void fetchAddress() {
-        // Only start the service to fetch the address if GoogleApiClient is
-        // connected.
-        if (mGoogleApiClient.isConnected() && mLastLocation != null) {
-            startIntentService();
-        }
-        // If GoogleApiClient isn't connected, process the user's request by
-        // setting mAddressRequested to true. Later, when GoogleApiClient connects,
-        // launch the service to fetch the address. As far as the user is
-        // concerned, pressing the Fetch Address button
-        // immediately kicks off the process of getting the address.
-        mAddressRequested = true;
-    }
 
     /**
      * Get the device location and nearby places when the activity is restored after a pause.
@@ -289,7 +366,7 @@ public class MainActivity extends AppCompatActivity
         if (mGoogleApiClient.isConnected()) {
             LocationServices.FusedLocationApi.removeLocationUpdates(
                     mGoogleApiClient, this);
-            mGoogleApiClient.disconnect();//disconnect our google api client
+            //mGoogleApiClient.disconnect();//disconnect our google api client
         }
     }
 
@@ -342,7 +419,13 @@ public class MainActivity extends AppCompatActivity
      */
     @Override
     public void onLocationChanged(Location location) {
-        mCurrentLocation = location;
+        if(addressFilter(mPreviousLocation, location) || mCurrentLocation == null)
+            mCurrentLocation = location;
+        else if(mCurrentLocation == null)
+            mCurrentLocation = location;
+        else
+            mCurrentLocation = mPreviousLocation;
+
         updateMarkers();
     }
 
@@ -353,25 +436,6 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mGoogleMap = googleMap;//instantiate the public googlemap variable
-
-    /*    mGoogleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-        if (ActivityCompat.checkSelfPermission(getActivity(), android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(getActivity(), android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        mGoogleMap.setMyLocationEnabled(true);
-        mGoogleMap.setMinZoomPreference(4);
-        mGoogleMap.setMaxZoomPreference(8);
-        mGoogleMap.setTrafficEnabled(true);
-        mGoogleMap.setIndoorEnabled(true);
-        mGoogleMap.setBuildingsEnabled(true);
-        mGoogleMap.getUiSettings().setZoomControlsEnabled(true);*/
 
         // Turn on the My Location layer and the related control on the map.
         updateLocationUI();
@@ -415,7 +479,18 @@ public class MainActivity extends AppCompatActivity
             double currentLongitude = mCurrentLocation.getLongitude();
             LatLng latLng = new LatLng(currentLatitude, currentLongitude);
 
-            getCorrespondingLocationAddress(mCurrentLocation);
+            String coordinate = "Lat: " + currentLatitude + ", Long: " + currentLongitude;
+            //set the coordinates in the bottomsheet
+            mCoordinates.setText(coordinate);
+
+            isLocationSettingsEnabled();//check if location settings is enabled
+            if(isLocationSettingsEnabled) {
+                getCorrespondingLocationAddress();
+            }else{
+                Snackbar.make(mCoordinatorLayout, getString(R.string.default_info_location_disabled), Snackbar.LENGTH_LONG)
+                        .setAction("Error retrieving location", null).show();
+                resolveLocationSettings();
+            }
 
             //clear googlemap markers
             mGoogleMap.clear();
@@ -438,15 +513,18 @@ public class MainActivity extends AppCompatActivity
 
             mGoogleMap.addCircle(circleOptions);
             mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, DEFAULT_ZOOM));
-           /* mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                    new LatLng(mCurrentLocation.getLatitude(),
-                            mCurrentLocation.getLongitude()), DEFAULT_ZOOM));*/
 
-            Toast.makeText(this, "Latitude: " + currentLatitude + " >> Longitude: " + currentLongitude + " >>", Toast.LENGTH_LONG).show();
         } else {
             Log.d(TAG, "Current location is null. Using defaults.");
             mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM));
             mGoogleMap.getUiSettings().setMyLocationButtonEnabled(false);
+
+            if(!isLocationSettingsEnabled) {
+                Snackbar.make(mCoordinatorLayout, getString(R.string.default_info_location_disabled), Snackbar.LENGTH_LONG)
+                        .setAction("Error retrieving location", null).show();
+                resolveLocationSettings();
+            }
+
         }
 
     }
@@ -465,6 +543,184 @@ public class MainActivity extends AppCompatActivity
                 .addApi(Places.PLACE_DETECTION_API)
                 .build();
         createLocationRequest();
+    }
+
+    /**
+     * Check whether the phone's location settings is turned on
+     * Display a custom message, if it isn't
+     */
+  /*  @SuppressWarnings("deprecation")
+    private boolean isLocationEnabled() {
+       *//* LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
+                .addLocationRequest(mLocationRequestHighAccuracy)
+                .addLocationRequest(mLocationRequestBalancedPowerAccuracy);*//*
+        int locationMode = 0;
+        String locationProviders;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            try {
+                locationMode = Settings.Secure.getInt(getContentResolver(), Settings.Secure.LOCATION_MODE);
+
+            } catch (Settings.SettingNotFoundException e) {
+                e.printStackTrace();
+                return false;
+            }
+
+            return locationMode != Settings.Secure.LOCATION_MODE_OFF;
+
+        } else {
+            locationProviders = Settings.Secure.getString(getContentResolver(), Settings.Secure.LOCATION_PROVIDERS_ALLOWED);
+            return !TextUtils.isEmpty(locationProviders);
+        }
+    }
+
+    *//**
+     * Opens the location settings for user to enable location
+     * , in the event that the users phone doesn;t have location turned on
+     *//*
+    private void openLocationSettings() {
+        dialog = new MaterialDialog.Builder(this)
+                .title(R.string.locationDialog)
+                .content(R.string.locationDialogContent)
+                .positiveText(R.string.openSettingsPos)
+                .negativeText(R.string.openSettingsNeg)
+                .onPositive(new MaterialDialog.SingleButtonCallback() {
+                    @Override
+                    public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
+                        startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+                    }
+                })
+                .onNegative(new MaterialDialog.SingleButtonCallback() {
+                    @Override
+                    public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
+                        //close the app
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                            finishAffinity();
+                        } else finish();
+                    }
+                })
+                .show();
+    }*/
+
+    /**
+     * Determine if the relevant system settings are enabled on the device to carry out the desired location request.
+     * Optionally, invoke a dialog that allows the user to enable the necessary location settings with a single tap.
+     */
+    private void isLocationSettingsEnabled() {
+
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
+                .addLocationRequest(mLocationRequest);
+        builder.setAlwaysShow(true);
+
+        PendingResult<LocationSettingsResult> result = LocationServices.SettingsApi.checkLocationSettings(mGoogleApiClient, builder.build());
+
+        result.setResultCallback(new ResultCallback<LocationSettingsResult>() {
+            @Override
+            public void onResult(LocationSettingsResult result) {
+                final Status status = result.getStatus();
+                final LocationSettingsStates state  = result.getLocationSettingsStates();
+                switch (status.getStatusCode()) {
+                    case LocationSettingsStatusCodes.SUCCESS:
+                        // All location settings are satisfied. The client can initialize location
+                        // requests here.
+                            isLocationSettingsEnabled = true;
+                        Log.d("onResult", "SUCCESS");
+                        break;
+                    case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
+                        // Location settings are not satisfied. However, we have no way to fix the
+                        showExitDialog("Not for Device");
+                        Log.d("onResult", "UNAVAILABLE");
+                        break;
+                }
+            }
+        });
+
+    }
+
+
+
+    /**
+     * Determine if the relevant system settings are enabled on the device to carry out the desired location request.
+     * Optionally, invoke a dialog that allows the user to enable the necessary location settings with a single tap.
+     */
+    private void resolveLocationSettings() {
+
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
+                .addLocationRequest(mLocationRequest);
+        builder.setAlwaysShow(true);
+
+        PendingResult<LocationSettingsResult> result = LocationServices.SettingsApi.checkLocationSettings(mGoogleApiClient, builder.build());
+
+        result.setResultCallback(new ResultCallback<LocationSettingsResult>() {
+            @Override
+            public void onResult(LocationSettingsResult result) {
+                final Status status = result.getStatus();
+                final LocationSettingsStates state  = result.getLocationSettingsStates();
+                switch (status.getStatusCode()) {
+                    case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
+                        // Location settings are not satisfied. But could be fixed by showing the user
+                        // a dialog.
+                        Log.d("onResult", "RESOLUTION_REQUIRED");
+                        try {
+                            // Show the dialog by calling startResolutionForResult(),
+                            // and check the result in onActivityResult().
+                            status.startResolutionForResult(MainActivity.this, REQUEST_CHECK_SETTINGS);
+                        } catch (IntentSender.SendIntentException e) {
+                            // Ignore the error.
+                            showExitDialog(getString(R.string.locationDialog));
+                        }
+                        break;
+                    /*case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
+                        // Location settings are not satisfied. However, we have no way to fix the
+                        showExitDialog("Not for Device");
+                        Log.d("onResult", "UNAVAILABLE");
+                        break;*/
+                }
+            }
+        });
+
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        // This log is never called
+        Log.d("onActivityResult()", Integer.toString(resultCode));
+
+        //final LocationSettingsStates states = LocationSettingsStates.fromIntent(data);
+        switch (requestCode) {
+            case REQUEST_CHECK_SETTINGS:
+                switch (resultCode) {
+                    case Activity.RESULT_OK: {
+                        getDeviceLocation();
+
+                        getCorrespondingLocationAddress();
+
+                        // All required changes were successfully made
+                        // Restart the application for the new location changes to take effect
+                        Intent i = getBaseContext().getPackageManager()
+                                .getLaunchIntentForPackage( getBaseContext().getPackageName() );
+                        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        finish();
+                        startActivity(i);
+                        break;
+                    }
+                    case Activity.RESULT_CANCELED: {
+                        // The user was asked to change settings, but chose not to
+                        //close the app
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                            finishAffinity();
+                        } else finish();
+                        break;
+                    }
+                    default: {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                            finishAffinity();
+                        } else finish();
+                        break;
+                    }
+                }
+                break;
+        }
     }
 
     /**
@@ -500,12 +756,12 @@ public class MainActivity extends AppCompatActivity
          * onRequestPermissionsResult.
          */
         if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
-                android.Manifest.permission.ACCESS_FINE_LOCATION)
+                Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             mLocationPermissionGranted = true;
         } else {
             ActivityCompat.requestPermissions(this,
-                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                     PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
         }
         /*
@@ -514,11 +770,44 @@ public class MainActivity extends AppCompatActivity
          * Also request regular updates about the device location.
          */
         if (mLocationPermissionGranted) {
-            mCurrentLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+            mPreviousLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+            mCurrentLocation = mPreviousLocation;
             LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
                     mLocationRequest, this);
         }
     }
+
+   /* *//**
+     * Request location update directly
+     *//*
+    private void getDeviceLocation() {
+        *//*
+         * Request location permission, so that we can get the location of the
+         * device. The result of the permission request is handled by a callback,
+         * onRequestPermissionsResult.
+         *//*
+        if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            mLocationPermissionGranted = true;
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+        }
+        *//*
+         * Get the best and most recent location of the device, which may be null in rare
+         * cases when a location is not available.
+         * Also request regular updates about the device location.
+         *//*
+        if (mLocationPermissionGranted) {
+            mCurrentLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+            mCurrentLocation = LocationServices.FusedLocationApi.(mGoogleApiClient);
+            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
+                    mLocationRequest, this);
+        }
+    }*/
+
 
     /**
      * Handles the result of the request for location permissions.
@@ -553,6 +842,7 @@ public class MainActivity extends AppCompatActivity
             // Get the businesses and other points of interest located
             // nearest to the device's current location.
             @SuppressWarnings("MissingPermission")
+
             PendingResult<PlaceLikelihoodBuffer> result = Places.PlaceDetectionApi
                     .getCurrentPlace(mGoogleApiClient, null);
             result.setResultCallback(new ResultCallback<PlaceLikelihoodBuffer>() {
@@ -560,6 +850,9 @@ public class MainActivity extends AppCompatActivity
                 public void onResult(@NonNull PlaceLikelihoodBuffer likelyPlaces) {
                     /*//clear googlemap markers
                     mGoogleMap.clear();*/
+                    String places = "Nearby places >> ";
+
+                    String place_saveable = "";
 
                     for (PlaceLikelihood placeLikelihood : likelyPlaces) {
                         // Add a marker for each place near the device's current location, with an
@@ -570,22 +863,38 @@ public class MainActivity extends AppCompatActivity
                             snippet = snippet + "\n" + attributions;
                         }
 
+                        place_saveable = placeLikelihood.getPlace().getLatLng() + " " + snippet + ">>>";
+
+                        places += (String) placeLikelihood.getPlace().getName() + ", ";
+
                         mGoogleMap.addMarker(new MarkerOptions()
                                 .position(placeLikelihood.getPlace().getLatLng())
                                 .title((String) placeLikelihood.getPlace().getName())
                                 .snippet(snippet));
-                        Toast.makeText(MainActivity.this, "Cahak place likelyhood :: "+placeLikelihood.getPlace().getName(), Toast.LENGTH_LONG).show();
-                        getCorrespondingLocationAddress(mCurrentLocation);
                     }
                     // Release the place likelihood buffer.
                     likelyPlaces.release();
+                    //now update the nearby places textview with these retrieved places
+                    //if(places.length() > 17) mNearby.setText(places);
+
+                    mPref.edit()
+                            .putString(Const.popularLocation, place_saveable)
+                            .commit();
                 }
             });
+
+            //also get the corresponding location address
+            //getCorrespondingLocationAddress(mCurrentLocation);
+            //isLocationSettingsEnabled(); //also calls get corresponding address method
         } else {
+            Snackbar.make(mCoordinatorLayout, getString(R.string.default_info_snippet), Snackbar.LENGTH_SHORT)
+                    .setAction("Error retrieving location", null).show();
+           //showDefaultLocationDialog();
             mGoogleMap.addMarker(new MarkerOptions()
                     .position(mDefaultLocation)
                     .title(getString(R.string.default_info_title))
                     .snippet(getString(R.string.default_info_snippet)));
+
         }
     }
 
@@ -612,66 +921,142 @@ public class MainActivity extends AppCompatActivity
      * retrieve the street address from the geocoder, handle any errors that may occur,
      * and send the results back to the activity that requested the address.
      */
-    protected void getCorrespondingLocationAddress(Location location) {//
+    protected void getCorrespondingLocationAddress() {//
 
-            Geocoder geocoder = new Geocoder(this, Locale.getDefault());
+        Geocoder geocoder = new Geocoder(this, Locale.getDefault());
 
-            String errorMessage = "";
+        String errorMessage = "";
 
-            List<Address> addresses = null;
+        List<Address> addresses = null;
 
-            try {
+        try {
+            getDeviceLocation();
+            if (mCurrentLocation == null ) {//|| !geocoder.isPresent()
+                Toast.makeText(this, R.string.no_geocoder_available, Toast.LENGTH_LONG).show();
+
+                getDeviceLocation();
+                run();
+
+            } else {
+                String coordinate = "Lat: " + mCurrentLocation.getLatitude() + ", Long: " +  mCurrentLocation.getLongitude();
+                //set the coordinates in the bottomsheet
+                mCoordinates.setText(coordinate);
+
+                LatLng latLng = new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
+
+                //clear googlemap markers
+                mGoogleMap.clear();
+                MarkerOptions options = new MarkerOptions()
+                        .position(latLng)
+                        .title("I am here!");
+                mGoogleMap.addMarker(options);
+                mGoogleMap.setContentDescription("You are here!");
+
+                // Instantiates a new CircleOptions object around user position and defines the center and radius
+                CircleOptions circleOptions = new CircleOptions()
+                        .center(latLng)
+                        .radius(100)
+                        .strokeWidth(5)
+                        .strokeColor(Color.GREEN)
+                        .fillColor(R.color.Aquamarine); // In meters
+
+                // Get back the mutable Circle
+                //Circle circle = myMap.addCircle(circleOptions);
+
+                mGoogleMap.addCircle(circleOptions);
+                mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, DEFAULT_ZOOM));
+
                 addresses = geocoder.getFromLocation(
-                        location.getLatitude(),
-                        location.getLongitude(),
+                        mCurrentLocation.getLatitude(),
+                        mCurrentLocation.getLongitude(),
                         // get single address with this
                         1);
-            } catch (IOException ioException) {
-                // Catch network or other I/O problems.
-                errorMessage = getString(R.string.service_not_available);
-                Log.e(TAG, errorMessage, ioException);
-            } catch (IllegalArgumentException illegalArgumentException) {
-                // Catch invalid latitude or longitude values.
-                errorMessage = getString(R.string.invalid_lat_long_used);
-                Log.e(TAG, errorMessage + ". " +
-                        "Latitude = " + location.getLatitude() +
-                        ", Longitude = " +
-                        location.getLongitude(), illegalArgumentException);
+            }
+        } catch (IOException ioException) {
+            // Catch network or other I/O problems.
+            errorMessage = getString(R.string.service_not_available);
+            Log.e(TAG, errorMessage, ioException);
+        } catch (IllegalArgumentException illegalArgumentException) {
+            // Catch invalid latitude or longitude values.
+            errorMessage = getString(R.string.invalid_lat_long_used);
+            Log.e(TAG, errorMessage + ". " +
+                    "Latitude = " + mCurrentLocation.getLatitude() +
+                    ", Longitude = " +
+                    mCurrentLocation.getLongitude(), illegalArgumentException);
+        } /*catch(RuntimeException rx){//close app
+            Log.e(TAG, errorMessage + ". " + rx.toString(), rx);
+            Log.e(TAG, errorMessage + ". " + rx.toString(), rx);
+           showExitDialog();
+        }*/
+
+        //String to hold address and update address textview
+        String addressLocality = "";
+        String addressStr = "";
+        String addressStateCountry = "";
+
+        // Handle case where no address was found.
+        if (addresses == null || addresses.size() == 0) {
+            if (errorMessage.isEmpty()) {
+                errorMessage = getString(R.string.no_address_found);
+                Log.e(TAG, errorMessage);
+            }
+            //Toast.makeText(MainActivity.this, Constants.FAILURE_RESULT+ "Err: "+errorMessage, Toast.LENGTH_LONG).show();
+        } else {
+            Address address = addresses.get(0);
+            ArrayList<String> addressFragments = new ArrayList<String>();
+
+            // Fetch the address lines using getAddressLine,
+            // join them, and send them to the thread.
+            for (int i = 0; i <= address.getMaxAddressLineIndex(); i++) {
+                Log.e(TAG, "Address max = " + address.getMaxAddressLineIndex() + " :: " + address.toString());
+                addressFragments.add(address.getAddressLine(i));
+
+                if (i == 0) {
+                    addressLocality += address.getAddressLine(i);
+                }
+
+                if (i != address.getMaxAddressLineIndex()) {
+                    addressStr += address.getAddressLine(i) + ", ";
+                } else addressStr += address.getAddressLine(i);
+
+                if (i > 0 && i != address.getMaxAddressLineIndex()) {
+                    addressStateCountry += address.getAddressLine(i) + ", ";
+                } else if (i == address.getMaxAddressLineIndex())
+                    addressStateCountry += address.getAddressLine(i);
             }
 
-            // Handle case where no address was found.
-            if (addresses == null || addresses.size()  == 0) {
-                if (errorMessage.isEmpty()) {
-                    errorMessage = getString(R.string.no_address_found);
-                    Log.e(TAG, errorMessage);
-                }
-                Toast.makeText(MainActivity.this, Constants.FAILURE_RESULT+ "Err: "+errorMessage, Toast.LENGTH_LONG).show();
-            } else {
-                Address address = addresses.get(0);
-                ArrayList<String> addressFragments = new ArrayList<String>();
+            Log.e(TAG, getString(R.string.address_found) + " :: " + address.toString());
+            Log.e(TAG, getString(R.string.address_found) + " :: " + address.toString());
+            Log.e(TAG, getString(R.string.address_found) + " :: " + addressFragments.toString());
+            Log.e(TAG, getString(R.string.address_found) + " :: " + addressFragments.toString());
 
-                // Fetch the address lines using getAddressLine,
-                // join them, and send them to the thread.
-                for(int i = 0; i < address.getMaxAddressLineIndex(); i++) {
-                    addressFragments.add(address.getAddressLine(i));
-                }
-                Log.e(TAG, getString(R.string.address_found)+" :: "+address.toString());
-                Log.e(TAG, getString(R.string.address_found)+" :: "+address.toString());
-                Log.e(TAG, getString(R.string.address_found)+" :: "+addressFragments.toString());
-                Log.e(TAG, getString(R.string.address_found)+" :: "+addressFragments.toString());
+            //Now update the locality textview also
+            if (addressLocality.contains(","))
+                mLocality.setText(addressLocality.split(",")[1]);//get the locality without the house number
+            else mLocality.setText(addressLocality);
 
-                Toast.makeText(MainActivity.this, Constants.SUCCESS_RESULT+" :: "+ TextUtils.join(System.getProperty("line.separator"), addressFragments), Toast.LENGTH_LONG).show();
-                Toast.makeText(getApplicationContext(), "Address: "+addressFragments.toString(), Toast.LENGTH_LONG).show();
+            // address textview
+            mAddress.setText(addressStr);
+            mLocationFullAddress = addressStr;
 
-            }
+            //Now update the state country view
+            mStateCountry.setText(addressStateCountry);
+
+            //Toast.makeText(MainActivity.this, Constants.SUCCESS_RESULT+" :: "+ TextUtils.join(System.getProperty("line.separator"), addressFragments), Toast.LENGTH_LONG).show();
+        }
 
     }
 
-    protected void startIntentService() {
-        Intent intent = new Intent(this, GetAddressIntentService.class);
-        intent.putExtra(Constants.RECEIVER, mResultReceiver);
-        intent.putExtra(Constants.LOCATION_DATA_EXTRA, mLastLocation);
-        startService(intent);
+    public void run(){
+        try{
+            getDeviceLocation();
+            //do something
+            Thread.sleep(3000);
+            //do something after waking up
+            getCorrespondingLocationAddress();
+        }catch(InterruptedException e){
+            // interrupted exception hit before the sleep time is completed.so how do i make my thread sleep for exactly 3 seconds?
+        }
     }
 
     @Override
@@ -721,6 +1106,49 @@ public class MainActivity extends AppCompatActivity
                 .show();
     }
 
+    public void showExitDialog(String title) {
+        dialog = new MaterialDialog.Builder(this)
+                .title(title)
+                .content(R.string.locationDialogContent)
+                .positiveText(R.string.locationErrorDialogPos)
+                .cancelable(false)
+                .onPositive(new MaterialDialog.SingleButtonCallback() {
+                    @Override
+                    public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
+                        //close app
+                        /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                            finishAffinity();
+                        } else finish();*/
+                        System.exit(0);
+                    }
+                })
+                .show();
+    }
+
+    public void showDefaultLocationDialog() {
+        dialog = new MaterialDialog.Builder(this)
+                .title(R.string.defaultDialogTitle)
+                .content(R.string.defaultDialogContent)
+                .positiveText(R.string.defaultDialogPos)
+                .negativeText(R.string.defaultDialogNeg)
+                .cancelable(false)
+                .onPositive(new MaterialDialog.SingleButtonCallback() {
+                    @Override
+                    public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
+                        dialog.dismiss();
+                    }
+                })
+                .onNegative(new MaterialDialog.SingleButtonCallback() {
+                    @Override
+                    public void onClick(@NonNull MaterialDialog dialog, @NonNull DialogAction which) {
+                        //Exit the app
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                            finishAffinity();
+                        } else finish();
+                    }
+                })
+                .show();
+    }
 
     @SuppressWarnings("StatementWithEmptyBody")
     @Override
@@ -729,14 +1157,21 @@ public class MainActivity extends AppCompatActivity
         int id = item.getItemId();
 
         if (id == R.id.home) {
-            // Do nothing
+            // Restart activity
+            Intent intent = new Intent(MainActivity.this, MainActivity.class);
+            startActivity(intent);
+            finish();
 
-        } else if (id == R.id.my_locs) {
+        } else if (id == R.id.my_locs) { //TODO: Create a fragment with a recyclerview to display the users saved locations
             //Load Location Fragment
 
-        } else if (id == R.id.trending) {
-            //Load Trending Fragment
+            //Call function to show toast message instead
+            showSavedLocations();
+        } else if (id == R.id.trending) { //TODO: Create a fragment with a recyclerview to display the popular places the user has been around
+            //Load Popular Fragment
 
+            //Call function to show toast messag with popular locations instead
+            showPopularLocations();
         } else if (id == R.id.about) {
             //hide bottomsheet
             mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
@@ -764,7 +1199,7 @@ public class MainActivity extends AppCompatActivity
     //methoid to retrieve google account tied to phone and username
     private String getUsername() {
         manager = AccountManager.get(this);
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.GET_ACCOUNTS) != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.GET_ACCOUNTS) != PackageManager.PERMISSION_GRANTED) {
             // TODO: Consider calling
             //    ActivityCompat#requestPermissions
             // here to request the missing permissions, and then overriding
@@ -795,36 +1230,189 @@ public class MainActivity extends AppCompatActivity
             return null;
     }
 
-    //get user mail linked to phone
-    private String getUserMail() {
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.GET_ACCOUNTS) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            //return TODO;
-        }
-        Account[] accounts = AccountManager.get(this).getAccounts();
-        Log.e("", "Size: " + accounts.length);
-        String strGmail = null;
-        for (Account account : accounts) {
-
-            String possibleEmail = account.name;
-            String type = account.type;
-
-            if (type.equals("com.google")) {
-                strGmail = possibleEmail;
-
-                Log.e("", "Emails: " + strGmail);
-                break;
-            }
-        }
-        return strGmail;
+    //get month in string
+    private String getMonth(int m) {
+        // add 1 to the month
+        m = m + 1;
+        if (m == 1)
+            return "January";
+        else if (m == 2)
+            return "February";
+        else if (m == 3)
+            return "March";
+        else if (m == 4)
+            return "April";
+        else if (m == 5)
+            return "May";
+        else if (m == 6)
+            return "June";
+        else if (m == 7)
+            return "July";
+        else if (m == 8)
+            return "August";
+        else if (m == 9)
+            return "September";
+        else if (m == 10)
+            return "October";
+        else if (m == 11)
+            return "November";
+        else if (m == 12)
+            return "December";
+        else
+            return "Unknown";
     }
 
+    //Show toast of all saved locations
+    private void showSavedLocations() {
+        String places[] = null;
+        if (mPlaceDetails != "") {
+            //split mplacedetails
+            places = mPlaceDetails.split(">>>");
+
+            for (int i = 0; i < places.length; i++) {
+                String latitude = "";
+                String longitude = "";
+                String address = "";
+
+                Toast.makeText(MainActivity.this, places[i], Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    //Show toast of all popular locations
+    private void showPopularLocations() {
+        String popular[] = null;
+        if (mPopularLocations != "") {
+            //split mplacedetails
+            popular = mPopularLocations.split(">>>");
+
+            for (int i = 0; i < popular.length; i++) {
+                String latitude = "";
+                String longitude = "";
+                String address = "";
+
+                Toast.makeText(MainActivity.this, popular[i], Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    /**
+     * ATTENTION: This was auto-generated to implement the App Indexing API.
+     * See https://g.co/AppIndexing/AndroidStudio for more information.
+     */
+    public Action getIndexApiAction() {
+        Thing object = new Thing.Builder()
+                .setName("Main Page") // TODO: Define a title for the content shown.
+                // TODO: Make sure this auto-generated URL is correct.
+                .setUrl(Uri.parse("http://[ENTER-YOUR-URL-HERE]"))
+                .build();
+        return new Action.Builder(Action.TYPE_VIEW)
+                .setObject(object)
+                .setActionStatus(Action.STATUS_TYPE_COMPLETED)
+                .build();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+
+        // The activity is either being restarted or started for the first time
+        // so this is where we should make sure that GPS is enabled
+        LocationManager locationManager =
+                (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        boolean gpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+
+        // ATTENTION: This was auto-generated to implement the App Indexing API.
+        // See https://g.co/AppIndexing/AndroidStudio for more information.
+        client.connect();
+       /* //check if settings is enabled
+        isLocationSettingsEnabled(mCurrentLocation, true);
+*/
+        AppIndex.AppIndexApi.start(client, getIndexApiAction());
+
+        if (!gpsEnabled) {
+            // Create a dialog here that requests the user to enable GPS, and use an intent
+            // with the android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS action
+            // to take the user to the Settings screen to enable GPS when they click "OK"
+            isLocationSettingsEnabled();
+        }
+
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+
+        // ATTENTION: This was auto-generated to implement the App Indexing API.
+        // See https://g.co/AppIndexing/AndroidStudio for more information.
+        AppIndex.AppIndexApi.end(client, getIndexApiAction());
+        // Disconnecting the client invalidates it.
+        if(mGoogleApiClient.isConnected())
+            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+
+        client.disconnect();
+        mGoogleApiClient.disconnect();
+    }
+
+    /**
+     * Filter new address depending on the accuracy and time they come in
+     * Make use of location after deciding if it is better than previous one.
+     *
+     * @param location Newly acquired location.
+     */
+    public Boolean addressFilter(Location oldLocation, Location location){
+        if(isBetterLocation(oldLocation, location)){
+            // If location is better, do some user preview.
+            /*Toast.makeText(MainActivity.this,
+                    "Better location found: ", Toast.LENGTH_SHORT)
+                    .show();*/
+            getCorrespondingLocationAddress();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Time difference threshold set for 40seconds.
+     */
+    static final int TIME_DIFFERENCE_THRESHOLD = 1 * 40 * 1000;
+
+    /**
+     * Decide if new location is better than older by following some basic criteria.
+     * This algorithm can be as simple or complicated as your needs dictate it.
+     * Try experimenting and get your best location strategy algorithm.
+     *
+     * @param oldLocation Old location used for comparison.
+     * @param newLocation Newly acquired location compared to old one.
+     * @return If new location is more accurate and suits your criteria more than the old one.
+     */
+    boolean isBetterLocation(Location oldLocation, Location newLocation) {
+        // If there is no old location, of course the new location is better.
+        if(oldLocation == null) {
+            return true;
+        }
+
+        // Check if new location is newer in time.
+        boolean isNewer = newLocation.getTime() > oldLocation.getTime();
+
+        // Check if new location more accurate. Accuracy is radius in meters, so less is better.
+        boolean isMoreAccurate = newLocation.getAccuracy() < oldLocation.getAccuracy();
+        if(isMoreAccurate && isNewer) {
+            // More accurate and newer is always better.
+            return true;
+        } else if(isMoreAccurate && !isNewer) {
+            // More accurate but not newer can lead to bad fix because of user movement.
+            // Let us set a threshold for the maximum tolerance of time difference.
+            long timeDifference = newLocation.getTime() - oldLocation.getTime();
+
+            // If time difference is not greater then allowed threshold we accept it.
+            if(timeDifference > -TIME_DIFFERENCE_THRESHOLD) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     class AddressResultReceiver extends ResultReceiver {
         public AddressResultReceiver(Handler handler) {
@@ -839,9 +1427,9 @@ public class MainActivity extends AppCompatActivity
             mAddressOutput = resultData.getString(Constants.RESULT_DATA_KEY);
             //displayAddressOutput();
 
-            // Show a toast message if an address was found.
+            // Show a toast message if an address was found. Toast message too distracting
             if (resultCode == Constants.SUCCESS_RESULT) {
-                Toast.makeText(MainActivity.this, getString(R.string.address_found), Toast.LENGTH_LONG).show();
+                //Toast.makeText(MainActivity.this, getString(R.string.address_found), Toast.LENGTH_LONG).show();
             }
 
         }
